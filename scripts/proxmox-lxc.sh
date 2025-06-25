@@ -5,15 +5,30 @@
 
 set -e
 
-# Configuration
-CONTAINER_ID=${CONTAINER_ID:-200}
-CONTAINER_NAME="ghostcrate"
-TEMPLATE="ubuntu-22.04-standard"
-DISK_SIZE="8G"
-MEMORY="2048"
-CORES="2"
-NETWORK="vmbr0"
-STORAGE="local-lxc"
+# Helper functions
+get_next_container_id() {
+    local next_id
+    next_id=$(pvesh get /cluster/nextid --format json | jq -r '.')
+    echo "$next_id"
+}
+
+get_available_bridges() {
+    ip link show | grep -E '^[0-9]+: vmbr[0-9]+' | sed 's/.*: \(vmbr[0-9]\+\).*/\1/' | sort
+}
+
+validate_ip() {
+    local ip=$1
+    if [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+        IFS='.' read -ra ADDR <<< "$ip"
+        for i in "${ADDR[@]}"; do
+            if [[ $i -gt 255 ]]; then
+                return 1
+            fi
+        done
+        return 0
+    fi
+    return 1
+}
 
 # Colors for output
 RED='\033[0;31m'
@@ -31,21 +46,149 @@ if ! command -v pct &> /dev/null; then
     exit 1
 fi
 
-echo -e "${YELLOW}📋 Configuration:${NC}"
+# Check for required tools
+if ! command -v jq &> /dev/null; then
+    echo -e "${YELLOW}📦 Installing jq...${NC}"
+    apt update && apt install -y jq
+fi
+
+# Setup Mode Selection
+echo -e "${YELLOW}⚙️ Setup Configuration${NC}"
+echo ""
+echo "Setup modes:"
+echo "1. Default setup (quick deployment with recommended settings)"
+echo "2. Advanced setup (customize all settings)"
+echo ""
+read -p "Choose setup mode (1 or 2, default: 1): " setup_mode
+setup_mode=${setup_mode:-1}
+
+if [ "$setup_mode" = "2" ]; then
+    # Advanced Configuration
+    echo ""
+    echo -e "${BLUE}🔧 Advanced Configuration Mode${NC}"
+    
+    # Container ID selection
+    echo ""
+    echo -e "${BLUE}📋 Container ID Selection${NC}"
+    suggested_id=$(get_next_container_id)
+    echo "Suggested next available ID: $suggested_id"
+    read -p "Enter container ID (or press Enter for $suggested_id): " user_container_id
+    CONTAINER_ID=${user_container_id:-$suggested_id}
+
+    # Validate container ID isn't in use
+    if pct status $CONTAINER_ID &> /dev/null; then
+        echo -e "${RED}❌ Error: Container ID $CONTAINER_ID is already in use${NC}"
+        echo "Available container IDs:"
+        pvesh get /cluster/nextid
+        exit 1
+    fi
+
+    # Container name selection
+    echo ""
+    echo -e "${BLUE}📝 Container Name${NC}"
+    read -p "Enter container name (default: ghostcrate): " user_container_name
+    CONTAINER_NAME=${user_container_name:-"ghostcrate"}
+
+    # Network bridge selection
+    echo ""
+    echo -e "${BLUE}🌐 Network Configuration${NC}"
+    echo "Available network bridges:"
+    available_bridges=$(get_available_bridges)
+    if [ -z "$available_bridges" ]; then
+        echo "  vmbr0 (default)"
+        NETWORK="vmbr0"
+    else
+        echo "$available_bridges" | nl -w2 -s'. '
+        echo ""
+        read -p "Select network bridge (default: vmbr0): " user_network
+        NETWORK=${user_network:-"vmbr0"}
+    fi
+
+    # IP Configuration
+    echo ""
+    echo -e "${BLUE}🔗 IP Address Configuration${NC}"
+    echo "1. DHCP (automatic)"
+    echo "2. Static IP"
+    read -p "Choose IP configuration (1 or 2, default: 1): " ip_choice
+    ip_choice=${ip_choice:-1}
+
+    if [ "$ip_choice" = "2" ]; then
+        while true; do
+            read -p "Enter static IP address (e.g., 192.168.1.100/24): " static_ip
+            if [[ $static_ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}$ ]]; then
+                IP_CONFIG="ip=$static_ip"
+                break
+            else
+                echo -e "${RED}❌ Invalid IP format. Please use format: 192.168.1.100/24${NC}"
+            fi
+        done
+        read -p "Enter gateway IP (optional): " gateway_ip
+        if [ -n "$gateway_ip" ] && validate_ip "$gateway_ip"; then
+            IP_CONFIG="$IP_CONFIG,gw=$gateway_ip"
+        fi
+    else
+        IP_CONFIG="ip=dhcp"
+    fi
+
+    # Resource configuration
+    echo ""
+    echo -e "${BLUE}⚡ Resource Configuration${NC}"
+    read -p "Memory in MB (default: 2048): " user_memory
+    MEMORY=${user_memory:-2048}
+
+    read -p "CPU cores (default: 2): " user_cores
+    CORES=${user_cores:-2}
+
+    read -p "Disk size (default: 8G): " user_disk
+    DISK_SIZE=${user_disk:-"8G"}
+
+    # Storage selection
+    read -p "Storage location (default: local-lxc): " user_storage
+    STORAGE=${user_storage:-"local-lxc"}
+
+    # Template selection
+    read -p "Template (default: ubuntu-22.04-standard): " user_template
+    TEMPLATE=${user_template:-"ubuntu-22.04-standard"}
+else
+    # Default Configuration
+    echo ""
+    echo -e "${BLUE}⚡ Default Configuration Mode${NC}"
+    CONTAINER_ID=$(get_next_container_id)
+    CONTAINER_NAME="ghostcrate"
+    TEMPLATE="ubuntu-22.04-standard"
+    DISK_SIZE="8G"
+    MEMORY="2048"
+    CORES="2"
+    NETWORK="vmbr0"
+    STORAGE="local-lxc"
+    IP_CONFIG="ip=dhcp"
+    
+    # Validate container ID isn't in use
+    if pct status $CONTAINER_ID &> /dev/null; then
+        echo -e "${RED}❌ Error: Container ID $CONTAINER_ID is already in use${NC}"
+        echo "Available container IDs:"
+        pvesh get /cluster/nextid
+        exit 1
+    fi
+fi
+
+echo ""
+echo -e "${YELLOW}📋 Final Configuration:${NC}"
 echo "  Container ID: $CONTAINER_ID"
 echo "  Container Name: $CONTAINER_NAME"
 echo "  Template: $TEMPLATE"
 echo "  Disk Size: $DISK_SIZE"
 echo "  Memory: ${MEMORY}MB"
 echo "  CPU Cores: $CORES"
+echo "  Network Bridge: $NETWORK"
+echo "  IP Configuration: $IP_CONFIG"
+echo "  Storage: $STORAGE"
 echo ""
 
-# Check if container ID is already in use
-if pct status $CONTAINER_ID &> /dev/null; then
-    echo -e "${RED}❌ Error: Container ID $CONTAINER_ID is already in use${NC}"
-    echo "Available container IDs:"
-    pvesh get /cluster/nextid
-    exit 1
+read -p "Proceed with container creation? (y/N): " confirm
+if [[ ! $confirm =~ ^[Yy]$ ]]; then
+    echo -e "${YELLOW}⚠️ Container creation cancelled${NC}"
+    exit 0
 fi
 
 # Create the LXC container
@@ -55,7 +198,7 @@ pct create $CONTAINER_ID local:vztmpl/${TEMPLATE}_amd64.tar.xz \
     --memory $MEMORY \
     --cores $CORES \
     --rootfs ${STORAGE}:${DISK_SIZE} \
-    --net0 name=eth0,bridge=${NETWORK},ip=dhcp \
+    --net0 name=eth0,bridge=${NETWORK},$IP_CONFIG \
     --features nesting=1 \
     --unprivileged 1 \
     --start 1
