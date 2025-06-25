@@ -2,5 +2,86 @@
 name = "ghostcrate"
 version = "0.1.0"
 edition = "2024"
+authors = ["GhostCrate Team"]
+description = "Self-hosted Rust crate registry & package server"
+license = "MIT"
 
 [dependencies]
+# Web framework
+axum = { version = "0.7", features = ["macros", "multipart"], optional = true }
+tower = { version = "0.4", optional = true }
+tower-http = { version = "0.5", features = ["fs", "cors"], optional = true }
+hyper = { version = "1.0", features = ["full"], optional = true }
+
+# Async runtime
+tokio = { version = "1.0", features = ["full"], optional = true }
+
+# Database
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid", "migrate"], optional = true }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Authentication
+bcrypt = { version = "0.15", optional = true }
+jsonwebtoken = { version = "9.0", optional = true }
+
+# Configuration
+config = { version = "0.14", optional = true }
+
+# Logging
+tracing = { version = "0.1", optional = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
+
+# Utilities
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1.0"
+thiserror = "1.0"
+sha2 = "0.10"
+tokio-util = { version = "0.7", features = ["io"] }
+
+# Leptos for Rust native web GUI
+leptos = { version = "0.6", features = ["csr"] }
+leptos_axum = { version = "0.6", optional = true }
+leptos_meta = "0.6"
+leptos_router = "0.6"
+wasm-bindgen = "0.2"
+gloo-net = { version = "0.5", features = ["http"] }
+console_error_panic_hook = "0.1"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "server"
+path = "src/main.rs"
+required-features = ["ssr"]
+
+[features]
+default = ["ssr"]
+hydrate = ["leptos/hydrate", "leptos_meta/hydrate", "leptos_router/hydrate"]
+ssr = [
+    "dep:axum", 
+    "dep:tower", 
+    "dep:tower-http", 
+    "dep:tokio", 
+    "dep:sqlx", 
+    "dep:bcrypt", 
+    "dep:jsonwebtoken", 
+    "dep:config", 
+    "dep:tracing", 
+    "dep:tracing-subscriber",
+    "leptos/ssr", 
+    "leptos_meta/ssr", 
+    "leptos_router/ssr", 
+    "leptos_axum/default"
+]
+
+[profile.wasm-release]
+inherits = "release"
+opt-level = 'z'
+lto = true
+codegen-units = 1
+panic = "abort"
