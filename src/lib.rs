@@ -3,6 +3,7 @@ pub mod db;
 pub mod auth;
 pub mod web;
 pub mod storage;
+pub mod config;
 
 use leptos::*;
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -13,8 +14,8 @@ use sqlx::SqlitePool;
 #[cfg(feature = "ssr")]
 #[derive(Clone)]
 pub struct AppState {
+    pub config: config::AppConfig,
     pub pool: SqlitePool,
-    pub auth_config: auth::AuthConfig,
     pub storage: storage::Storage,
 }
 

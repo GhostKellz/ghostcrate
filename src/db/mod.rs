@@ -4,6 +4,9 @@ use uuid::Uuid;
 use chrono::Utc;
 use crate::models::{User, Session, Crate, CrateVersion, PublishRequest};
 
+mod organization_functions;
+pub use organization_functions::*;
+
 pub async fn initialize_database(database_url: &str) -> Result<SqlitePool> {
     let pool = SqlitePool::connect(database_url).await?;
     
@@ -16,12 +19,16 @@ pub async fn initialize_database(database_url: &str) -> Result<SqlitePool> {
             email TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
             is_admin BOOLEAN NOT NULL DEFAULT FALSE,
+            github_id INTEGER,
+            github_username TEXT,
+            avatar_url TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         );
         
         CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
         CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+        CREATE INDEX IF NOT EXISTS idx_users_github_id ON users(github_id);
         "#
     )
     .execute(&pool)
@@ -45,6 +52,79 @@ pub async fn initialize_database(database_url: &str) -> Result<SqlitePool> {
     )
     .execute(&pool)
     .await?;
+
+    // Create organizations table
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS organizations (
+            id TEXT PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL,
+            display_name TEXT NOT NULL,
+            description TEXT,
+            avatar_url TEXT,
+            website TEXT,
+            owner_id TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE CASCADE
+        );
+        
+        CREATE INDEX IF NOT EXISTS idx_organizations_name ON organizations(name);
+        CREATE INDEX IF NOT EXISTS idx_organizations_owner_id ON organizations(owner_id);
+        "#
+    )
+    .execute(&pool)
+    .await?;
+
+    // Create organization members table
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS organization_members (
+            id TEXT PRIMARY KEY,
+            organization_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            role TEXT NOT NULL, -- 'owner', 'admin', 'member'
+            invited_by TEXT,
+            invited_at TEXT NOT NULL,
+            joined_at TEXT,
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            FOREIGN KEY (organization_id) REFERENCES organizations (id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+            FOREIGN KEY (invited_by) REFERENCES users (id) ON DELETE SET NULL,
+            UNIQUE(organization_id, user_id)
+        );
+        
+        CREATE INDEX IF NOT EXISTS idx_org_members_org_id ON organization_members(organization_id);
+        CREATE INDEX IF NOT EXISTS idx_org_members_user_id ON organization_members(user_id);
+        "#
+    )
+    .execute(&pool)
+    .await?;
+
+    // Create organization invites table
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS organization_invites (
+            id TEXT PRIMARY KEY,
+            organization_id TEXT NOT NULL,
+            email TEXT NOT NULL,
+            role TEXT NOT NULL,
+            invited_by TEXT NOT NULL,
+            token TEXT UNIQUE NOT NULL,
+            expires_at TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            accepted_at TEXT,
+            FOREIGN KEY (organization_id) REFERENCES organizations (id) ON DELETE CASCADE,
+            FOREIGN KEY (invited_by) REFERENCES users (id) ON DELETE CASCADE
+        );
+        
+        CREATE INDEX IF NOT EXISTS idx_org_invites_token ON organization_invites(token);
+        CREATE INDEX IF NOT EXISTS idx_org_invites_email ON organization_invites(email);
+        CREATE INDEX IF NOT EXISTS idx_org_invites_org_id ON organization_invites(organization_id);
+        "#
+    )
+    .execute(&pool)
+    .await?;
     
     // Create crates table
     sqlx::query(
@@ -60,15 +140,38 @@ pub async fn initialize_database(database_url: &str) -> Result<SqlitePool> {
             categories TEXT, -- JSON encoded Vec<String>
             license TEXT,
             owner_id TEXT NOT NULL,
+            organization_id TEXT,
             downloads INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
-            FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE CASCADE
+            FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE CASCADE,
+            FOREIGN KEY (organization_id) REFERENCES organizations (id) ON DELETE SET NULL
         );
         
         CREATE INDEX IF NOT EXISTS idx_crates_name ON crates(name);
         CREATE INDEX IF NOT EXISTS idx_crates_owner_id ON crates(owner_id);
+        CREATE INDEX IF NOT EXISTS idx_crates_organization_id ON crates(organization_id);
         CREATE INDEX IF NOT EXISTS idx_crates_downloads ON crates(downloads);
+        "#
+    )
+    .execute(&pool)
+    .await?;
+
+    // Create download metrics table
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS download_metrics (
+            id TEXT PRIMARY KEY,
+            crate_id TEXT NOT NULL,
+            version TEXT NOT NULL,
+            date TEXT NOT NULL, -- YYYY-MM-DD format
+            count INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (crate_id) REFERENCES crates (id) ON DELETE CASCADE,
+            UNIQUE(crate_id, version, date)
+        );
+        
+        CREATE INDEX IF NOT EXISTS idx_download_metrics_crate_id ON download_metrics(crate_id);
+        CREATE INDEX IF NOT EXISTS idx_download_metrics_date ON download_metrics(date);
         "#
     )
     .execute(&pool)
@@ -114,13 +217,16 @@ pub async fn create_user(
     let now = Utc::now();
     
     sqlx::query(
-        "INSERT INTO users (id, username, email, password_hash, is_admin, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)"
+        "INSERT INTO users (id, username, email, password_hash, is_admin, github_id, github_username, avatar_url, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)"
     )
     .bind(id.to_string())
     .bind(username)
     .bind(email)
     .bind(password_hash)
     .bind(false)
+    .bind(None::<i64>)
+    .bind(None::<String>)
+    .bind(None::<String>)
     .bind(now.to_rfc3339())
     .bind(now.to_rfc3339())
     .execute(pool)
@@ -132,6 +238,9 @@ pub async fn create_user(
         email: email.to_string(),
         password_hash: password_hash.to_string(),
         is_admin: false,
+        github_id: None,
+        github_username: None,
+        avatar_url: None,
         created_at: now,
         updated_at: now,
     };
@@ -141,7 +250,7 @@ pub async fn create_user(
 
 pub async fn get_user_by_username(pool: &SqlitePool, username: &str) -> Result<Option<User>> {
     let row = sqlx::query(
-        "SELECT id, username, email, password_hash, is_admin, created_at, updated_at FROM users WHERE username = ?1"
+        "SELECT id, username, email, password_hash, is_admin, github_id, github_username, avatar_url, created_at, updated_at FROM users WHERE username = ?1"
     )
     .bind(username)
     .fetch_optional(pool)
@@ -155,6 +264,9 @@ pub async fn get_user_by_username(pool: &SqlitePool, username: &str) -> Result<O
                 email: row.get("email"),
                 password_hash: row.get("password_hash"),
                 is_admin: row.get("is_admin"),
+                github_id: row.get("github_id"),
+                github_username: row.get("github_username"),
+                avatar_url: row.get("avatar_url"),
                 created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?.with_timezone(&chrono::Utc),
                 updated_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))?.with_timezone(&chrono::Utc),
             };
@@ -230,7 +342,7 @@ pub async fn delete_session(pool: &SqlitePool, token: &str) -> Result<()> {
 
 pub async fn get_user_by_id(pool: &SqlitePool, user_id: Uuid) -> Result<Option<User>> {
     let row = sqlx::query(
-        "SELECT id, username, email, password_hash, is_admin, created_at, updated_at FROM users WHERE id = ?1"
+        "SELECT id, username, email, password_hash, is_admin, github_id, github_username, avatar_url, created_at, updated_at FROM users WHERE id = ?1"
     )
     .bind(user_id.to_string())
     .fetch_optional(pool)
@@ -244,6 +356,9 @@ pub async fn get_user_by_id(pool: &SqlitePool, user_id: Uuid) -> Result<Option<U
                 email: row.get("email"),
                 password_hash: row.get("password_hash"),
                 is_admin: row.get("is_admin"),
+                github_id: row.get("github_id"),
+                github_username: row.get("github_username"),
+                avatar_url: row.get("avatar_url"),
                 created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?.with_timezone(&chrono::Utc),
                 updated_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))?.with_timezone(&chrono::Utc),
             };

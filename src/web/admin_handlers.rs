@@ -8,7 +8,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use sqlx::Row;
 
-use crate::models::{User, UserResponse};
+use crate::mo    let recent_users_rows = sqlx::query(
+        "SELECT id, username, email, password_hash, is_admin, github_id, github_username, avatar_url, created_at, updated_at FROM users ORDER BY created_at DESC LIMIT 5"
+    )s::{User, UserResponse};
 use crate::AppState;
 
 #[derive(Deserialize)]
@@ -240,7 +242,7 @@ pub async fn admin_users_handler(
     let offset = (page - 1) * per_page;
 
     let rows = sqlx::query(
-        "SELECT id, username, email, password_hash, is_admin, created_at, updated_at FROM users ORDER BY created_at DESC LIMIT ?1 OFFSET ?2"
+        "SELECT id, username, email, password_hash, is_admin, github_id, github_username, avatar_url, created_at, updated_at FROM users ORDER BY created_at DESC LIMIT ?1 OFFSET ?2"
     )
     .bind(per_page)
     .bind(offset)

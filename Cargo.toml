@@ -1,8 +1,8 @@
 [package]
 name = "ghostcrate"
-version = "0.1.0"
-edition = "2024"
-authors = ["GhostCrate Team"]
+version = "0.2.0"
+edition = "2021"
+authors = ["Christopher Kelley <ckelley@ghostkellz.sh>"]
 description = "Self-hosted Rust crate registry & package server"
 license = "MIT"
 
@@ -34,6 +34,24 @@ config = { version = "0.14", optional = true }
 tracing = { version = "0.1", optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 
+# Storage backends
+aws-sdk-s3 = { version = "1.0", optional = true }
+aws-config = { version = "1.0", optional = true }
+
+# HTTP client for GitHub API and crates.io
+reqwest = { version = "0.11", features = ["json", "rustls-tls"], optional = true }
+urlencoding = { version = "2.1", optional = true }
+
+# Rate limiting
+tower_governor = { version = "0.3", optional = true }
+
+# Metrics
+metrics = { version = "0.23", optional = true }
+metrics-exporter-prometheus = { version = "0.15", optional = true }
+
+# Organizations/Teams validation
+validator = { version = "0.16", features = ["derive"], optional = true }
+
 # Utilities
 uuid = { version = "1.0", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
@@ -41,6 +59,8 @@ anyhow = "1.0"
 thiserror = "1.0"
 sha2 = "0.10"
 tokio-util = { version = "0.7", features = ["io"] }
+futures = "0.3"
+bytes = "1.0"
 
 # Leptos for Rust native web GUI
 leptos = { version = "0.6", features = ["csr"] }
@@ -73,6 +93,14 @@ ssr = [
     "dep:config", 
     "dep:tracing", 
     "dep:tracing-subscriber",
+    "dep:aws-sdk-s3",
+    "dep:aws-config",
+    "dep:reqwest",
+    "dep:urlencoding",
+    "dep:tower_governor",
+    "dep:metrics",
+    "dep:metrics-exporter-prometheus",
+    "dep:validator",
     "leptos/ssr", 
     "leptos_meta/ssr", 
     "leptos_router/ssr", 

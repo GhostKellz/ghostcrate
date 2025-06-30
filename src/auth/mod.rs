@@ -4,13 +4,15 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use bcrypt::{hash, verify, DEFAULT_COST};
+use bcrypt::{hash, verify};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use chrono::{Duration, Utc};
 use anyhow::Result;
+use uuid::Uuid;
 
 use crate::models::{User, LoginRequest, CreateUserRequest, LoginResponse, UserResponse};
+use crate::config::AuthConfig;
 use crate::db;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -21,29 +23,18 @@ pub struct Claims {
     pub iat: usize,
 }
 
-#[derive(Clone)]
-pub struct AuthConfig {
-    pub jwt_secret: String,
-    pub session_duration_hours: i64,
-}
-
-impl Default for AuthConfig {
-    fn default() -> Self {
-        Self {
-            jwt_secret: "your-secret-key-change-this-in-production".to_string(),
-            session_duration_hours: 24 * 7, // 7 days
-        }
-    }
-}
-
-pub fn hash_password(password: &str) -> Result<String> {
-    let hashed = hash(password, DEFAULT_COST)?;
+pub fn hash_password(password: &str, cost: u32) -> Result<String> {
+    let hashed = hash(password, cost)?;
     Ok(hashed)
 }
 
 pub fn verify_password(password: &str, hash: &str) -> Result<bool> {
     let is_valid = verify(password, hash)?;
     Ok(is_valid)
+}
+
+pub fn generate_session_token() -> String {
+    Uuid::new_v4().to_string()
 }
 
 pub fn create_jwt_token(user: &User, config: &AuthConfig) -> Result<String> {
@@ -89,24 +80,24 @@ pub async fn authenticate_user(
         return Err(anyhow::anyhow!("Invalid username or password"));
     }
     
-    let token = create_jwt_token(&user, config)?;
+    let session_token = generate_session_token();
     let expires_at = Utc::now() + Duration::hours(config.session_duration_hours);
     
     // Store session in database
-    db::create_session(pool, user.id, &token, expires_at).await?;
+    db::create_session(pool, user.id, &session_token, expires_at).await?;
     
     Ok(LoginResponse {
-        token,
+        token: session_token,
         user: user.into(),
-        expires_at,
     })
 }
 
 pub async fn register_user(
     pool: &sqlx::SqlitePool,
     create_request: CreateUserRequest,
+    config: &AuthConfig,
 ) -> Result<UserResponse> {
-    let password_hash = hash_password(&create_request.password)?;
+    let password_hash = hash_password(&create_request.password, config.bcrypt_cost)?;
     
     let user = db::create_user(
         pool,

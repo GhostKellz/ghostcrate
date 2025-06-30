@@ -4,8 +4,6 @@ use axum::{
     response::Json,
     Extension,
 };
-use uuid::Uuid;
-use serde_json::json;
 
 use crate::auth::{authenticate_user, register_user};
 use crate::models::{LoginRequest, CreateUserRequest, LoginResponse, UserResponse};
@@ -15,7 +13,7 @@ pub async fn login_handler(
     State(app_state): State<crate::AppState>,
     Json(login_request): Json<LoginRequest>,
 ) -> Result<Json<LoginResponse>, StatusCode> {
-    match authenticate_user(&app_state.pool, login_request, &app_state.auth_config).await {
+    match authenticate_user(&app_state.pool, login_request, &app_state.config.auth).await {
         Ok(response) => Ok(Json(response)),
         Err(_) => Err(StatusCode::UNAUTHORIZED),
     }
@@ -26,7 +24,11 @@ pub async fn register_handler(
     State(app_state): State<crate::AppState>,
     Json(create_request): Json<CreateUserRequest>,
 ) -> Result<Json<UserResponse>, StatusCode> {
-    match register_user(&app_state.pool, create_request).await {
+    if !app_state.config.registry.public_registration {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    match register_user(&app_state.pool, create_request, &app_state.config.auth).await {
         Ok(user) => Ok(Json(user)),
         Err(_) => Err(StatusCode::BAD_REQUEST),
     }
