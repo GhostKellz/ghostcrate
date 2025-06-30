@@ -597,3 +597,112 @@ pub async fn count_search_results(pool: &SqlitePool, query: &str) -> Result<i64>
     
     Ok(row.get("count"))
 }
+
+// Health check functions
+pub async fn count_total_crates(pool: &SqlitePool) -> Result<i64> {
+    let row = sqlx::query("SELECT COUNT(*) as count FROM crates")
+        .fetch_one(pool)
+        .await?;
+    
+    Ok(row.get("count"))
+}
+
+pub async fn count_total_versions(pool: &SqlitePool) -> Result<i64> {
+    let row = sqlx::query("SELECT COUNT(*) as count FROM crate_versions")
+        .fetch_one(pool)
+        .await?;
+    
+    Ok(row.get("count"))
+}
+
+pub async fn count_total_downloads(pool: &SqlitePool) -> Result<i64> {
+    let row = sqlx::query("SELECT COALESCE(SUM(downloads), 0) as total FROM crates")
+        .fetch_one(pool)
+        .await?;
+    
+    Ok(row.get("total"))
+}
+
+pub async fn count_total_users(pool: &SqlitePool) -> Result<i64> {
+    let row = sqlx::query("SELECT COUNT(*) as count FROM users")
+        .fetch_one(pool)
+        .await?;
+    
+    Ok(row.get("count"))
+}
+
+// Additional helper functions for health stats
+pub async fn count_total_organizations(pool: &SqlitePool) -> Result<i64> {
+    let row = sqlx::query("SELECT COUNT(*) as count FROM organizations")
+        .fetch_one(pool)
+        .await?;
+    
+    Ok(row.get("count"))
+}
+
+pub async fn count_downloads_last_days(pool: &SqlitePool, days: i64) -> Result<i64> {
+    let cutoff_date = (chrono::Utc::now() - chrono::Duration::days(days)).format("%Y-%m-%d").to_string();
+    
+    let row = sqlx::query("SELECT COALESCE(SUM(count), 0) as total FROM download_metrics WHERE date >= ?1")
+        .bind(cutoff_date)
+        .fetch_one(pool)
+        .await?;
+    
+    Ok(row.get("total"))
+}
+
+pub async fn count_new_crates_last_days(pool: &SqlitePool, days: i64) -> Result<i64> {
+    let cutoff_date = (chrono::Utc::now() - chrono::Duration::days(days)).to_rfc3339();
+    
+    let row = sqlx::query("SELECT COUNT(*) as count FROM crates WHERE created_at >= ?1")
+        .bind(cutoff_date)
+        .fetch_one(pool)
+        .await?;
+    
+    Ok(row.get("count"))
+}
+
+pub async fn count_new_users_last_days(pool: &SqlitePool, days: i64) -> Result<i64> {
+    let cutoff_date = (chrono::Utc::now() - chrono::Duration::days(days)).to_rfc3339();
+    
+    let row = sqlx::query("SELECT COUNT(*) as count FROM users WHERE created_at >= ?1")
+        .bind(cutoff_date)
+        .fetch_one(pool)
+        .await?;
+    
+    Ok(row.get("count"))
+}
+
+pub async fn get_top_crates(pool: &SqlitePool, limit: i64) -> Result<Vec<crate::models::TopCrateStats>> {
+    let rows = sqlx::query(
+        r#"
+        SELECT c.name, c.downloads, c.description,
+               COALESCE(
+                   (SELECT cv.version FROM crate_versions cv 
+                    WHERE cv.crate_id = c.id 
+                    ORDER BY cv.created_at DESC LIMIT 1), 
+                   '0.0.0'
+               ) as latest_version
+        FROM crates c 
+        ORDER BY c.downloads DESC 
+        LIMIT ?1
+        "#
+    )
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
+    
+    let mut stats = Vec::new();
+    for row in rows {
+        // For now, just set downloads_last_30_days to 0 as we'd need more complex query
+        stats.push(crate::models::TopCrateStats {
+            name: row.get("name"),
+            total_downloads: row.get("downloads"),
+            downloads_last_30_days: 0, // TODO: implement proper calculation
+            latest_version: row.get("latest_version"),
+            description: row.get("description"),
+        });
+    }
+    
+    Ok(stats)
+}

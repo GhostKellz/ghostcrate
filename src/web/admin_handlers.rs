@@ -8,9 +8,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use sqlx::Row;
 
-use crate::mo    let recent_users_rows = sqlx::query(
-        "SELECT id, username, email, password_hash, is_admin, github_id, github_username, avatar_url, created_at, updated_at FROM users ORDER BY created_at DESC LIMIT 5"
-    )s::{User, UserResponse};
+use crate::models::{User, UserResponse};
 use crate::AppState;
 
 #[derive(Deserialize)]
@@ -212,6 +210,9 @@ pub async fn admin_stats_handler(
             email: row.get("email"),
             password_hash: row.get("password_hash"),
             is_admin: row.get("is_admin"),
+            github_id: row.get("github_id"),
+            github_username: row.get("github_username"),
+            avatar_url: row.get("avatar_url"),
             created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at")).unwrap().with_timezone(&chrono::Utc),
             updated_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at")).unwrap().with_timezone(&chrono::Utc),
         };
@@ -258,6 +259,9 @@ pub async fn admin_users_handler(
             email: row.get("email"),
             password_hash: row.get("password_hash"),
             is_admin: row.get("is_admin"),
+            github_id: row.get("github_id"),
+            github_username: row.get("github_username"),
+            avatar_url: row.get("avatar_url"),
             created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at")).unwrap().with_timezone(&chrono::Utc),
             updated_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at")).unwrap().with_timezone(&chrono::Utc),
         };

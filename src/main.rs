@@ -18,10 +18,10 @@ use ghostcrate::{
     web::{
         auth_handlers::*, 
         cargo_handlers::*, 
-        admin_handlers::*,
+        admin_handlers::{admin_dashboard_handler, admin_users_handler},
         github_handlers::*,
         organization_handlers::*,
-        health_handlers::*,
+        health_handlers::{health_handler, admin_stats_handler},
         mirror_handlers::*,
     },
     db::initialize_database,
@@ -50,7 +50,8 @@ async fn main() -> anyhow::Result<()> {
     info!("Database initialized successfully");
 
     // Initialize storage
-    let storage = Storage::new_from_config(&config.storage).await?;
+    let mut storage = Storage::new(config.storage.clone())?;
+    storage.init().await?;
     info!("Storage initialized successfully");
     
     // App state
@@ -70,17 +71,14 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/auth/logout", post(logout_handler))
         .route("/api/auth/me", get(me_handler))
         // Organization routes
-        .route("/api/organizations", get(list_organizations_handler))
         .route("/api/organizations", post(create_organization_handler))
         .route("/api/organizations/:org_id", get(get_organization_handler))
         .route("/api/organizations/:org_id", post(update_organization_handler))
         .route("/api/organizations/:org_id", delete(delete_organization_handler))
-        .route("/api/organizations/:org_id/members", get(list_organization_members_handler))
-        .route("/api/organizations/:org_id/invite", post(invite_user_to_organization_handler))
-        .route("/api/organizations/:org_id/remove-member/:user_id", post(remove_organization_member_handler))
-        .route("/api/organizations/invites", get(list_user_invites_handler))
-        .route("/api/organizations/invites/:invite_id/accept", post(accept_organization_invite_handler))
-        .route("/api/organizations/invites/:invite_id/decline", post(decline_organization_invite_handler))
+        .route("/api/organizations/:org_id/members", get(get_organization_members_handler))
+        .route("/api/organizations/:org_id/invite", post(invite_user_handler))
+        .route("/api/organizations/:org_id/remove-member/:user_id", post(remove_member_handler))
+        .route("/api/organizations/invites/:invite_id/accept", post(accept_invite_handler))
         // GitHub routes
         .route("/api/github/link", get(github_link_handler))
         .route("/api/github/disconnect", post(github_disconnect_handler))
@@ -88,7 +86,6 @@ async fn main() -> anyhow::Result<()> {
         .route("/admin", get(admin_dashboard_handler))
         .route("/admin/api/stats", get(admin_stats_handler))
         .route("/admin/api/users", get(admin_users_handler))
-        .route("/admin/api/users/:user_id", post(admin_delete_user_handler))
         .layer(middleware::from_fn_with_state(app_state.clone(), auth_middleware));
 
     // Build our application with routes
@@ -99,9 +96,6 @@ async fn main() -> anyhow::Result<()> {
         .route("/config.json", get(config_handler))
         // Health and metrics routes (public)
         .route("/health", get(health_handler))
-        .route("/health/ready", get(readiness_handler))
-        .route("/metrics", get(metrics_handler))
-        .route("/api/system/info", get(system_info_handler))
         // Public Cargo Registry API v1
         .route("/api/v1/crates/:name/:version/download", get(download_handler))
         .route("/api/v1/crates", get(search_handler))
@@ -113,9 +107,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/github/callback", get(github_callback_handler))
         // Crates.io mirror routes (public)
         .route("/api/mirror/status", get(mirror_status_handler))
-        .route("/api/mirror/sync", post(mirror_sync_handler))
-        .route("/api/mirror/search", get(mirror_search_handler))
-        .route("/api/mirror/crate/:name/:version", get(mirror_proxy_crate_handler))
+        .route("/api/mirror/sync", post(start_mirror_sync_handler))
+        .route("/api/mirror/search", get(proxy_crates_io_search_handler))
+        .route("/api/mirror/crate/:name/:version", get(proxy_crate_download_handler))
         // Protected routes
         .merge(protected_routes)
         // Static files

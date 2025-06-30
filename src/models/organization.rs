@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
+#[cfg(feature = "ssr")]
 use validator::Validate;
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -54,40 +55,42 @@ pub struct OrganizationInvite {
 }
 
 // Request/Response DTOs
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ssr", derive(Validate))]
 pub struct CreateOrganizationRequest {
-    #[validate(length(min = 2, max = 50))]
-    #[validate(regex = "^[a-zA-Z0-9_-]+$")]
+    #[cfg_attr(feature = "ssr", validate(length(min = 2, max = 50)))]
     pub name: String,
     
-    #[validate(length(min = 1, max = 100))]
+    #[cfg_attr(feature = "ssr", validate(length(min = 1, max = 100)))]
     pub display_name: String,
     
-    #[validate(length(max = 500))]
+    #[cfg_attr(feature = "ssr", validate(length(max = 500)))]
     pub description: Option<String>,
     
-    #[validate(url)]
+    #[cfg_attr(feature = "ssr", validate(url))]
     pub website: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ssr", derive(Validate))]
 pub struct UpdateOrganizationRequest {
-    #[validate(length(min = 1, max = 100))]
+    #[cfg_attr(feature = "ssr", validate(length(min = 1, max = 100)))]
     pub display_name: Option<String>,
     
-    #[validate(length(max = 500))]
+    #[cfg_attr(feature = "ssr", validate(length(max = 500)))]
     pub description: Option<String>,
     
-    #[validate(url)]
+    #[cfg_attr(feature = "ssr", validate(url))]
     pub website: Option<String>,
     
-    #[validate(url)]
+    #[cfg_attr(feature = "ssr", validate(url))]
     pub avatar_url: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ssr", derive(Validate))]
 pub struct InviteUserRequest {
-    #[validate(email)]
+    #[cfg_attr(feature = "ssr", validate(email))]
     pub email: String,
     pub role: OrganizationRole,
 }

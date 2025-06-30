@@ -154,9 +154,9 @@ pub async fn admin_stats_handler(
 async fn test_storage_health(app_state: &AppState) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // For local storage, check if directory is writable
     // For S3, this would test the connection
-    match &app_state.storage.config.backend {
+    match app_state.storage.backend() {
         crate::config::StorageBackend::Local => {
-            let test_path = std::path::Path::new(&app_state.storage.config.local_path);
+            let test_path = std::path::Path::new(app_state.storage.local_path());
             if !test_path.exists() {
                 return Err("Storage directory does not exist".into());
             }
@@ -172,7 +172,7 @@ async fn test_storage_health(app_state: &AppState) -> Result<(), Box<dyn std::er
         crate::config::StorageBackend::S3 => {
             // For S3, we could do a lightweight operation like listing objects with limit 1
             // For now, just assume it's healthy if configured
-            if app_state.storage.config.s3.is_some() {
+            if app_state.storage.s3_config().is_some() {
                 Ok(())
             } else {
                 Err("S3 not configured".into())
@@ -181,7 +181,7 @@ async fn test_storage_health(app_state: &AppState) -> Result<(), Box<dyn std::er
     }
 }
 
-async fn gather_registry_stats(app_state: &AppState) -> Result<RegistryStats, sqlx::Error> {
+async fn gather_registry_stats(app_state: &AppState) -> Result<RegistryStats, anyhow::Error> {
     // Get basic counts
     let total_crates = db::count_total_crates(&app_state.pool).await?;
     let total_versions = db::count_total_versions(&app_state.pool).await?;
@@ -221,9 +221,9 @@ async fn gather_registry_stats(app_state: &AppState) -> Result<RegistryStats, sq
 }
 
 async fn estimate_storage_size(app_state: &AppState) -> Result<i64, Box<dyn std::error::Error + Send + Sync>> {
-    match &app_state.storage.config.backend {
+    match app_state.storage.backend() {
         crate::config::StorageBackend::Local => {
-            let storage_path = std::path::Path::new(&app_state.storage.config.local_path);
+            let storage_path = std::path::Path::new(app_state.storage.local_path());
             get_directory_size(storage_path).await
         }
         #[cfg(feature = "ssr")]
@@ -235,20 +235,22 @@ async fn estimate_storage_size(app_state: &AppState) -> Result<i64, Box<dyn std:
     }
 }
 
-async fn get_directory_size(path: &std::path::Path) -> Result<i64, Box<dyn std::error::Error + Send + Sync>> {
-    let mut total_size = 0i64;
-    let mut entries = tokio::fs::read_dir(path).await?;
-    
-    while let Some(entry) = entries.next_entry().await? {
-        let metadata = entry.metadata().await?;
-        if metadata.is_file() {
-            total_size += metadata.len() as i64;
-        } else if metadata.is_dir() {
-            total_size += get_directory_size(&entry.path()).await?;
+fn get_directory_size(path: &std::path::Path) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<i64, Box<dyn std::error::Error + Send + Sync>>> + Send + '_>> {
+    Box::pin(async move {
+        let mut total_size = 0i64;
+        let mut entries = tokio::fs::read_dir(path).await?;
+        
+        while let Some(entry) = entries.next_entry().await? {
+            let metadata = entry.metadata().await?;
+            if metadata.is_file() {
+                total_size += metadata.len() as i64;
+            } else if metadata.is_dir() {
+                total_size += get_directory_size(&entry.path()).await?;
+            }
         }
-    }
-    
-    Ok(total_size)
+        
+        Ok(total_size)
+    })
 }
 
 fn get_uptime_seconds() -> u64 {
@@ -275,7 +277,7 @@ pub async fn system_info_handler(
 
     let info = json!({
         "version": env!("CARGO_PKG_VERSION"),
-        "rust_version": env!("RUSTC_VERSION"),
+        "rust_version": std::env::var("RUSTC_VERSION").unwrap_or_else(|_| "unknown".to_string()),
         "platform": std::env::consts::OS,
         "arch": std::env::consts::ARCH,
         "uptime_seconds": get_uptime_seconds(),

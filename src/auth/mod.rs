@@ -89,6 +89,7 @@ pub async fn authenticate_user(
     Ok(LoginResponse {
         token: session_token,
         user: user.into(),
+        expires_at,
     })
 }
 

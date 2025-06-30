@@ -712,6 +712,7 @@ pub async fn accept_organization_invite(
         OrganizationRole::Owner => "owner",
         OrganizationRole::Admin => "admin",
         OrganizationRole::Member => "member",
+        OrganizationRole::Viewer => "viewer",
     })
     .bind(invited_by.to_string())
     .bind(now.to_rfc3339())

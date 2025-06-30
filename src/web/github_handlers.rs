@@ -89,7 +89,7 @@ pub async fn github_callback_handler(
                 &email,
                 github_user.id as i64,
                 github_user.name.as_deref(),
-                github_user.avatar_url.as_deref(),
+                Some(&github_user.avatar_url),
             ).await.map_err(|e| {
                 error!("Failed to create GitHub user: {}", e);
                 StatusCode::INTERNAL_SERVER_ERROR
@@ -118,6 +118,7 @@ pub async fn github_callback_handler(
     Ok(Json(LoginResponse {
         token: session_token,
         user: user.into(),
+        expires_at,
     }))
 }
 
@@ -239,7 +240,7 @@ pub async fn github_link_handler(
         user.id,
         github_user.id as i64,
         github_user.name.as_deref(),
-        github_user.avatar_url.as_deref(),
+        Some(&github_user.avatar_url),
     ).await.map_err(|e| {
         error!("Failed to link GitHub account: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR

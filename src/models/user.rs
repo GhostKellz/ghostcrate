@@ -42,11 +42,6 @@ pub struct UserResponse {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize)]
-pub struct LoginResponse {
-    pub token: String,
-    pub user: UserResponse,
-}
 
 impl From<User> for UserResponse {
     fn from(user: User) -> Self {

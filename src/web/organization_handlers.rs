@@ -38,7 +38,8 @@ pub async fn create_organization_handler(
         return Err(StatusCode::NOT_IMPLEMENTED);
     }
 
-    // Validate request
+    // Validate request (only in SSR mode)
+    #[cfg(feature = "ssr")]
     request.validate().map_err(|_| StatusCode::BAD_REQUEST)?;
 
     // Check if organization name is available

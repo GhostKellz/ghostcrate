@@ -10,6 +10,9 @@ use aws_config::BehaviorVersion;
 
 use crate::config::{StorageConfig, StorageBackend, S3Config};
 
+#[cfg(feature = "ssr")]
+pub mod s3;
+
 #[derive(Clone)]
 pub struct Storage {
     config: StorageConfig,
@@ -255,5 +258,22 @@ impl Storage {
     // Legacy compatibility method
     pub fn base_path(&self) -> &str {
         &self.config.local_path
+    }
+
+    // Public accessor methods for health checks
+    pub fn config(&self) -> &StorageConfig {
+        &self.config
+    }
+
+    pub fn backend(&self) -> &StorageBackend {
+        &self.config.backend
+    }
+
+    pub fn local_path(&self) -> &str {
+        &self.config.local_path
+    }
+
+    pub fn s3_config(&self) -> Option<&S3Config> {
+        self.config.s3.as_ref()
     }
 }
