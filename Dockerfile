@@ -20,8 +20,10 @@ RUN cargo build --release --bin server
 # Runtime stage
 FROM debian:bookworm-slim
 
-# Install required packages
-RUN apt-get update && apt-get install -y \
+# Install required packages and update all packages to latest versions
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y \
     ca-certificates \
     curl \
     && rm -rf /var/lib/apt/lists/*
