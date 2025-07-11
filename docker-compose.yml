@@ -5,21 +5,98 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    ports:
-      - "8080:8080"
+    # Use host networking for LXC deployment
+    network_mode: host
     environment:
+      # Database
       - DATABASE_URL=sqlite:/data/ghostcrate.db
+      
+      # Server
+      - GHOSTCRATE_HOST=0.0.0.0
+      - GHOSTCRATE_PORT=8080
+      - GHOSTCRATE_ENVIRONMENT=production
+      - GHOSTCRATE_CORS_ORIGINS=*
+      - GHOSTCRATE_RATE_LIMIT_REQUESTS_PER_MINUTE=60
+      
+      # Storage (local by default, can be switched to S3)
+      - GHOSTCRATE_STORAGE_BACKEND=local
+      - GHOSTCRATE_STORAGE_LOCAL_PATH=/data
+      # Uncomment for S3/MinIO support:
+      # - GHOSTCRATE_STORAGE_BACKEND=s3
+      # - GHOSTCRATE_S3_BUCKET=ghostcrate
+      # - GHOSTCRATE_S3_REGION=us-east-1
+      # - GHOSTCRATE_S3_ENDPOINT=http://minio:9000
+      # - GHOSTCRATE_S3_ACCESS_KEY_ID=your-access-key
+      # - GHOSTCRATE_S3_SECRET_ACCESS_KEY=your-secret-key
+      
+      # Authentication
+      - GHOSTCRATE_AUTH_JWT_SECRET=yvLwLyQ5U0A5uBssA8VtM1+92cKlFNZNOo/twMK/LoA=
+      - GHOSTCRATE_AUTH_BCRYPT_COST=12
+      - GHOSTCRATE_AUTH_SESSION_DURATION_HOURS=24
+      
+      # GitHub OAuth (optional - uncomment to enable)
+      # - GHOSTCRATE_GITHUB_CLIENT_ID=your-github-client-id
+      # - GHOSTCRATE_GITHUB_CLIENT_SECRET=your-github-client-secret
+      # - GHOSTCRATE_GITHUB_REDIRECT_URL=http://localhost:8080/api/github/callback
+      
+      # Registry settings
+      - GHOSTCRATE_REGISTRY_NAME=GhostCrate
+      - GHOSTCRATE_REGISTRY_BASE_URL=http://localhost:8080
+      - GHOSTCRATE_REGISTRY_INDEX_URL=http://localhost:8080
+      
+      # Monitoring
+      - GHOSTCRATE_MONITORING_ENABLED=true
+      - GHOSTCRATE_MONITORING_METRICS_ENABLED=true
+      - GHOSTCRATE_MONITORING_HEALTH_CHECK_INTERVAL_SECONDS=30
+      
+      # Logging
       - RUST_LOG=info
       - LEPTOS_SITE_ADDR=0.0.0.0:8080
+      
     volumes:
       - ghostcrate_data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 10s
+
+  # Optional: MinIO for S3-compatible storage
+  # minio:
+  #   image: minio/minio:latest
+  #   command: server /data --console-address ":9001"
+  #   ports:
+  #     - "9000:9000"
+  #     - "9001:9001"
+  #   environment:
+  #     - MINIO_ROOT_USER=minioadmin
+  #     - MINIO_ROOT_PASSWORD=minioadmin123
+  #   volumes:
+  #     - minio_data:/data
+  #   restart: unless-stopped
+
+  # Optional: Prometheus for metrics (if monitoring enabled)
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+  #     - prometheus_data:/prometheus
+  #   command:
+  #     - '--config.file=/etc/prometheus/prometheus.yml'
+  #     - '--storage.tsdb.path=/prometheus'
+  #     - '--web.console.libraries=/etc/prometheus/console_libraries'
+  #     - '--web.console.templates=/etc/prometheus/consoles'
+  #     - '--web.enable-lifecycle'
+  #   restart: unless-stopped
 
 volumes:
   ghostcrate_data:
     driver: local
+  # minio_data:
+  #   driver: local
+  # prometheus_data:
+  #   driver: local
