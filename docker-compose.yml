@@ -39,6 +39,28 @@ services:
       # - GHOSTCRATE_GITHUB_CLIENT_SECRET=your-github-client-secret
       # - GHOSTCRATE_GITHUB_REDIRECT_URL=http://localhost:8080/api/github/callback
       
+      # OIDC Authentication (optional - uncomment to enable)
+      # Microsoft Entra ID (Azure AD)
+      # - GHOSTCRATE_OIDC_ENTRAID_CLIENT_ID=your-entraid-client-id
+      # - GHOSTCRATE_OIDC_ENTRAID_CLIENT_SECRET=your-entraid-client-secret
+      # - GHOSTCRATE_OIDC_ENTRAID_TENANT_ID=your-tenant-id
+      # - GHOSTCRATE_OIDC_ENTRAID_REDIRECT_URI=https://crates.cktech.org/auth/oidc/entra/callback
+      # - GHOSTCRATE_OIDC_ENTRAID_AUTO_REGISTER=true
+      # - GHOSTCRATE_OIDC_ENTRAID_SCOPES=openid,profile,email,User.Read
+      
+      # GitHub OIDC (alternative to GitHub OAuth above)
+      # - GHOSTCRATE_OIDC_GITHUB_CLIENT_ID=your-github-client-id
+      # - GHOSTCRATE_OIDC_GITHUB_CLIENT_SECRET=your-github-client-secret
+      # - GHOSTCRATE_OIDC_GITHUB_REDIRECT_URI=https://crates.cktech.org/auth/oidc/github/callback
+      # - GHOSTCRATE_OIDC_GITHUB_AUTO_REGISTER=true
+      # - GHOSTCRATE_OIDC_GITHUB_SCOPES=user:email,read:org
+      
+      # Google OAuth (optional)
+      # - GHOSTCRATE_OIDC_GOOGLE_CLIENT_ID=your-google-client-id
+      # - GHOSTCRATE_OIDC_GOOGLE_CLIENT_SECRET=your-google-client-secret
+      # - GHOSTCRATE_OIDC_GOOGLE_REDIRECT_URI=https://crates.cktech.org/auth/oidc/google/callback
+      # - GHOSTCRATE_OIDC_GOOGLE_AUTO_REGISTER=true
+      
       # Registry settings
       - GHOSTCRATE_REGISTRY_NAME=GhostCrate
       - GHOSTCRATE_REGISTRY_BASE_URL=http://localhost:8080

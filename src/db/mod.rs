@@ -5,7 +5,9 @@ use chrono::Utc;
 use crate::models::{User, Session, Crate, CrateVersion, PublishRequest};
 
 mod organization_functions;
+mod oidc_functions;
 pub use organization_functions::*;
+pub use oidc_functions::*;
 
 pub async fn initialize_database(database_url: &str) -> Result<SqlitePool> {
     let pool = SqlitePool::connect(database_url).await?;

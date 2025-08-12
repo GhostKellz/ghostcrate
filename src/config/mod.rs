@@ -1,3 +1,4 @@
+use crate::models::OidcConfig;
 use serde::{Deserialize, Serialize};
 use std::env;
 use anyhow::Result;
@@ -61,6 +62,7 @@ pub struct AuthConfig {
     pub session_duration_hours: i64,
     pub bcrypt_cost: u32,
     pub github_oauth: Option<GitHubOAuthConfig>,
+    pub oidc: Option<OidcConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -123,10 +125,16 @@ impl Default for AppConfig {
                 s3: None,
             },
             auth: AuthConfig {
-                jwt_secret: "change-this-in-production".to_string(),
-                session_duration_hours: 24 * 7, // 7 days
-                bcrypt_cost: 12,
-                github_oauth: None,
+                jwt_secret: env::var("GHOSTCRATE_AUTH_JWT_SECRET")
+                    .unwrap_or_else(|_| "your-secret-key-change-in-production".to_string()),
+                session_duration_hours: env::var("GHOSTCRATE_AUTH_SESSION_DURATION_HOURS")
+                    .unwrap_or_else(|_| "24".to_string())
+                    .parse().unwrap_or(24),
+                bcrypt_cost: env::var("GHOSTCRATE_AUTH_BCRYPT_COST")
+                    .unwrap_or_else(|_| "12".to_string())
+                    .parse().unwrap_or(12),
+                github_oauth: None, // Will be set later
+                oidc: None, // Will be set later
             },
             github: GitHubConfig {
                 api_token: None,

@@ -20,6 +20,7 @@ use ghostcrate::{
         cargo_handlers::*, 
         admin_handlers::{admin_dashboard_handler, admin_users_handler},
         github_handlers::*,
+        oidc_handlers::*,
         organization_handlers::*,
         health_handlers::{health_handler, admin_stats_handler},
         mirror_handlers::*,
@@ -105,6 +106,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/auth/register", post(register_handler))
         // GitHub OAuth callback (public)
         .route("/api/github/callback", get(github_callback_handler))
+        // OIDC Authentication routes (public)
+        .route("/api/oidc/:provider/login", get(oidc_login_handler))
+        .route("/api/oidc/:provider/callback", get(oidc_callback_handler))
         // Crates.io mirror routes (public)
         .route("/api/mirror/status", get(mirror_status_handler))
         .route("/api/mirror/sync", post(start_mirror_sync_handler))
