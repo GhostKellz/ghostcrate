@@ -1,0 +1,19 @@
+# Example .cargo/config.toml for using your GhostCrate registry
+# Place this in your project's .cargo/config.toml or ~/.cargo/config.toml
+
+[registries]
+# Your private GhostCrate registry
+ghostcrate = { index = "https://crates.cktechx.com/git/index" }
+
+# Alternative registry names for different domains
+cktechx = { index = "https://crates.cktechx.com/git/index" }
+cktechnology = { index = "https://crates.cktechnology.io/git/index" }
+
+[registry]
+# Set your private registry as default (optional)
+# default = "ghostcrate"
+
+# Publishing configuration
+[publish]
+# Publish to your private registry by default
+# registry = "ghostcrate"

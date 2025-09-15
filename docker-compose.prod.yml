@@ -1,0 +1,51 @@
+# Production override for docker-compose
+# Use with: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  ghostcrate:
+    environment:
+      # Production security
+      - GHOSTCRATE_AUTH_JWT_SECRET=${GHOSTCRATE_JWT_SECRET}
+      - GHOSTCRATE_CORS_ORIGINS=https://crates.cktechx.com,https://crates.cktechnology.io,https://crates.cktechx.io
+      - GHOSTCRATE_RATE_LIMIT_REQUESTS_PER_MINUTE=120
+
+      # Registry settings for production
+      - GHOSTCRATE_REGISTRY_BASE_URL=https://crates.cktechx.com
+      - GHOSTCRATE_REGISTRY_INDEX_URL=https://crates.cktechx.com
+
+      # Production logging
+      - RUST_LOG=info
+
+    restart: unless-stopped
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Optional: Add Watchtower for automatic updates
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: watchtower
+    restart: unless-stopped
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=3600
+      - WATCHTOWER_INCLUDE_STOPPED=true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - ghostcrate-network

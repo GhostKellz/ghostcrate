@@ -1,12 +1,12 @@
-version: '3.8'
-
 services:
   ghostcrate:
     build:
       context: .
       dockerfile: Dockerfile
-    # Use host networking for LXC deployment
-    network_mode: host
+    ports:
+      - "8080:8080"
+    networks:
+      - ghostcrate-network
     environment:
       # Database
       - DATABASE_URL=sqlite:/data/ghostcrate.db
@@ -15,7 +15,7 @@ services:
       - GHOSTCRATE_HOST=0.0.0.0
       - GHOSTCRATE_PORT=8080
       - GHOSTCRATE_ENVIRONMENT=production
-      - GHOSTCRATE_CORS_ORIGINS=*
+      - GHOSTCRATE_CORS_ORIGINS=https://crates.cktechx.com,https://crates.cktechnology.io,https://crates.cktechx.io
       - GHOSTCRATE_RATE_LIMIT_REQUESTS_PER_MINUTE=60
       
       # Storage (local by default, can be switched to S3)
@@ -37,34 +37,34 @@ services:
       # GitHub OAuth (optional - uncomment to enable)
       # - GHOSTCRATE_GITHUB_CLIENT_ID=your-github-client-id
       # - GHOSTCRATE_GITHUB_CLIENT_SECRET=your-github-client-secret
-      # - GHOSTCRATE_GITHUB_REDIRECT_URL=http://localhost:8080/api/github/callback
+      # - GHOSTCRATE_GITHUB_REDIRECT_URL=https://crates.cktechx.com/api/github/callback
       
       # OIDC Authentication (optional - uncomment to enable)
       # Microsoft Entra ID (Azure AD)
       # - GHOSTCRATE_OIDC_ENTRAID_CLIENT_ID=your-entraid-client-id
       # - GHOSTCRATE_OIDC_ENTRAID_CLIENT_SECRET=your-entraid-client-secret
       # - GHOSTCRATE_OIDC_ENTRAID_TENANT_ID=your-tenant-id
-      # - GHOSTCRATE_OIDC_ENTRAID_REDIRECT_URI=https://crates.cktech.org/auth/oidc/entra/callback
+      # - GHOSTCRATE_OIDC_ENTRAID_REDIRECT_URI=https://crates.cktechx.com/auth/oidc/entra/callback
       # - GHOSTCRATE_OIDC_ENTRAID_AUTO_REGISTER=true
       # - GHOSTCRATE_OIDC_ENTRAID_SCOPES=openid,profile,email,User.Read
       
       # GitHub OIDC (alternative to GitHub OAuth above)
       # - GHOSTCRATE_OIDC_GITHUB_CLIENT_ID=your-github-client-id
       # - GHOSTCRATE_OIDC_GITHUB_CLIENT_SECRET=your-github-client-secret
-      # - GHOSTCRATE_OIDC_GITHUB_REDIRECT_URI=https://crates.cktech.org/auth/oidc/github/callback
+      # - GHOSTCRATE_OIDC_GITHUB_REDIRECT_URI=https://crates.cktechx.com/auth/oidc/github/callback
       # - GHOSTCRATE_OIDC_GITHUB_AUTO_REGISTER=true
       # - GHOSTCRATE_OIDC_GITHUB_SCOPES=user:email,read:org
       
       # Google OAuth (optional)
       # - GHOSTCRATE_OIDC_GOOGLE_CLIENT_ID=your-google-client-id
       # - GHOSTCRATE_OIDC_GOOGLE_CLIENT_SECRET=your-google-client-secret
-      # - GHOSTCRATE_OIDC_GOOGLE_REDIRECT_URI=https://crates.cktech.org/auth/oidc/google/callback
+      # - GHOSTCRATE_OIDC_GOOGLE_REDIRECT_URI=https://crates.cktechx.com/auth/oidc/google/callback
       # - GHOSTCRATE_OIDC_GOOGLE_AUTO_REGISTER=true
       
-      # Registry settings
+      # Registry settings - Update for your domain
       - GHOSTCRATE_REGISTRY_NAME=GhostCrate
-      - GHOSTCRATE_REGISTRY_BASE_URL=http://localhost:8080
-      - GHOSTCRATE_REGISTRY_INDEX_URL=http://localhost:8080
+      - GHOSTCRATE_REGISTRY_BASE_URL=https://crates.cktechx.com
+      - GHOSTCRATE_REGISTRY_INDEX_URL=https://crates.cktechx.com
       
       # Monitoring
       - GHOSTCRATE_MONITORING_ENABLED=true
@@ -122,3 +122,7 @@ volumes:
   #   driver: local
   # prometheus_data:
   #   driver: local
+
+networks:
+  ghostcrate-network:
+    driver: bridge

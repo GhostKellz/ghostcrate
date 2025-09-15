@@ -1,25 +1,16 @@
-# Build stage
-FROM rust:1.81 as builder
-
-# Install trunk for building the frontend
-RUN cargo install trunk
-RUN rustup target add wasm32-unknown-unknown
+# Build stage - Use nightly for edition 2024 support
+FROM rustlang/rust:nightly as builder
 
 WORKDIR /app
 
-# Copy Cargo files
-COPY Cargo.toml Cargo.lock ./
-
-# Copy source code
-COPY src ./src
-COPY migrations ./migrations
-COPY style ./style
+# Copy all source files
+COPY . .
 
 # Build the application
-RUN cargo build --release --bin server
+RUN cargo build --release
 
-# Runtime stage
-FROM debian:bookworm-slim
+# Runtime stage - Use a newer distro with compatible glibc
+FROM debian:sid-slim
 
 # Install required packages and update all packages to latest versions
 RUN apt-get update && \
@@ -39,8 +30,9 @@ WORKDIR /app
 COPY --from=builder /app/target/release/server ./ghostcrate
 
 # Create data directory and set permissions
-RUN mkdir -p /data /app/static && \
-    chown -R app:app /data /app
+RUN mkdir -p /data && \
+    chown -R app:app /data /app && \
+    chmod 755 /data
 
 # Switch to app user
 USER app

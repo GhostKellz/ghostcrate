@@ -1,0 +1,63 @@
+# Development files
+.env
+.env.local
+.env.development
+.env.test
+
+# Build artifacts
+target/
+dist/
+pkg/
+
+# Docker files (avoid recursive copying)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+DEPLOYMENT.md
+docs/
+
+# IDE/Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+*.tmp
+
+# Logs
+*.log
+logs/
+
+# Node modules (if any)
+node_modules/
+
+# Test files
+tests/
+test/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Examples and templates
+*.example
+nginx.conf.example
+deploy.sh
+
+# Temporary files
+*.bak
+*.orig
+tmp/
+temp/
