@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="assets/ghostcrate-logo.png" alt="GhostCrate Logo" width="400">
+</div>
+
 # 👻️ GhostCrate
 
 > Self-hosted Rust crate registry & package server – fast, simple, Proxmox-ready, and designed for modern devops and the GhostMesh ecosystem.
